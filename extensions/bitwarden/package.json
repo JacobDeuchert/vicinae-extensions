@@ -24,7 +24,17 @@
 			"mode": "view"
 		}
 	],
-	"preferences": [],
+	"preferences": [
+		{
+			"name": "closeAfterCopy",
+			"type": "checkbox",
+			"title": "Close After Copy",
+			"description": "Close Vicinae after copying a password, username, or TOTP code",
+			"label": "Close Vicinae",
+			"default": false,
+			"required": false
+		}
+	],
 	"scripts": {
 		"build": "vici build",
 		"dev": "vici develop",

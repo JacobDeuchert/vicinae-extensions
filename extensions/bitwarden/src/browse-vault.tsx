@@ -9,6 +9,7 @@ import {
   Toast,
   showToast,
   closeMainWindow,
+  getPreferenceValues,
 } from "@vicinae/api";
 import {
   RbwError,
@@ -32,6 +33,12 @@ type DetailedEntry = {
   fields: { name: string; value: string }[];
   notes: string | null;
 };
+
+type Preferences = {
+  closeAfterCopy: boolean;
+};
+
+const preferences = getPreferenceValues<Preferences>();
 
 async function fetchDetailedEntry(
   name: string,
@@ -62,10 +69,17 @@ async function performAction(
   actionType: "copy" | "paste" = "copy",
 ): Promise<void> {
   if (actionType === "copy") {
-    await Clipboard.copy(value, { concealed: true });
-    await showToast(Toast.Style.Success, `Copied ${title}`);
+    await copyValue(title, value);
   } else {
     await Clipboard.paste(value);
+    await closeMainWindow();
+  }
+}
+
+async function copyValue(title: string, value: string): Promise<void> {
+  await Clipboard.copy(value, { concealed: true });
+  await showToast(Toast.Style.Success, `Copied ${title}`);
+  if (preferences.closeAfterCopy) {
     await closeMainWindow();
   }
 }
@@ -132,7 +146,7 @@ export default function Command() {
     },
     [loadEntries],
   );
-  
+
   if (notInstalled) {
     return (
       <List>
@@ -157,9 +171,8 @@ export default function Command() {
               <Action
                 title="Unlock Vault"
                 icon={Icon.LockUnlocked}
-                onAction={async () => {
-                  closeMainWindow();
-                  try {
+								onAction={async () => {
+									try {
                     const { execFile } = await import("node:child_process");
                     const { promisify } = await import("node:util");
                     await promisify(execFile)("rbw", ["unlock"]);
@@ -502,8 +515,7 @@ function EntryDetailView({ entry }: { entry: VaultEntry }) {
             title="Copy Password"
             icon={Icon.CopyClipboard}
             onAction={async () => {
-              await Clipboard.copy(detail.password, { concealed: true });
-              showToast(Toast.Style.Success, "Copied password");
+              await copyValue("password", detail.password);
             }}
           />
           {detail.user && (
@@ -511,8 +523,7 @@ function EntryDetailView({ entry }: { entry: VaultEntry }) {
               title="Copy Username"
               icon={Icon.Person}
               onAction={async () => {
-                await Clipboard.copy(detail.user!, { concealed: true });
-                showToast(Toast.Style.Success, "Copied username");
+                await copyValue("username", detail.user!);
               }}
             />
           )}
