@@ -2,7 +2,7 @@ import { ProjectType, RecentProject } from "./types";
 import { Icon, List } from "@vicinae/api";
 import { useEffect, useState, useCallback } from "react";
 import { ErrorView } from "./components/ErrorView";
-import { initializeDatabase } from "./util/database";
+import { closeDatabase, initializeDatabase } from "./util/database";
 import { ProjectListItem } from "./components/ProjectListItem";
 import { getRecentProjects } from "./util/projects";
 
@@ -14,6 +14,7 @@ export default function Command() {
     const loadProjects = useCallback(async () => {
         setIsLoading(true);
         try {
+            closeDatabase();
             await initializeDatabase();
             const recentProjects = getRecentProjects();
             setProjects(recentProjects);

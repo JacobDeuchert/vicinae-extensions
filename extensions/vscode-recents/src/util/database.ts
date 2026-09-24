@@ -11,6 +11,82 @@ const write = promisify(writeFile);
 
 let DATABASE: Database | null = null;
 
+function getUint32(buffer: Uint8Array, offset: number): number {
+    return new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength).getUint32(offset, false);
+}
+
+function applyWalFrames(database: Uint8Array, wal: Uint8Array): Uint8Array {
+    if (wal.byteLength < 32) {
+        return database;
+    }
+
+    const magic = getUint32(wal, 0);
+    if (magic !== 0x377f0682 && magic !== 0x377f0683) {
+        return database;
+    }
+
+    const pageSize = getUint32(wal, 8);
+    const frameSize = pageSize + 24;
+    if (pageSize === 0 || frameSize <= 24) {
+        return database;
+    }
+
+    const walSalt1 = getUint32(wal, 16);
+    const walSalt2 = getUint32(wal, 20);
+    let snapshot = database;
+    let pendingFrames: Array<{ pageNumber: number; page: Uint8Array }> = [];
+
+    for (let offset = 32; offset + frameSize <= wal.byteLength; offset += frameSize) {
+        const pageNumber = getUint32(wal, offset);
+        const databaseSize = getUint32(wal, offset + 4);
+        const frameSalt1 = getUint32(wal, offset + 8);
+        const frameSalt2 = getUint32(wal, offset + 12);
+
+        if (pageNumber === 0 || frameSalt1 !== walSalt1 || frameSalt2 !== walSalt2) {
+            break;
+        }
+
+        pendingFrames.push({
+            pageNumber,
+            page: wal.slice(offset + 24, offset + frameSize),
+        });
+
+        // A non-zero database size marks the last frame of a committed transaction.
+        if (databaseSize === 0) {
+            continue;
+        }
+
+        const nextSnapshot = new Uint8Array(databaseSize * pageSize);
+        nextSnapshot.set(snapshot.subarray(0, Math.min(snapshot.length, nextSnapshot.length)));
+
+        for (const frame of pendingFrames) {
+            const pageOffset = (frame.pageNumber - 1) * pageSize;
+            if (pageOffset < nextSnapshot.length) {
+                nextSnapshot.set(frame.page.subarray(0, Math.min(pageSize, nextSnapshot.length - pageOffset)), pageOffset);
+            }
+        }
+
+        snapshot = nextSnapshot;
+        pendingFrames = [];
+    }
+
+    return snapshot;
+}
+
+async function readDatabaseSnapshot(dbPath: string): Promise<Uint8Array> {
+    const database = await read(dbPath);
+
+    try {
+        const wal = await read(`${dbPath}-wal`);
+        return applyWalFrames(new Uint8Array(database), new Uint8Array(wal));
+    } catch (error) {
+        if ((error as { code?: string }).code !== "ENOENT") {
+            throw error;
+        }
+        return new Uint8Array(database);
+    }
+}
+
 export async function initializeDatabase(): Promise<Database> {
     if (DATABASE) {
         return DATABASE;
@@ -19,13 +95,13 @@ export async function initializeDatabase(): Promise<Database> {
     const dbPath = getVSCodeStateDBPath();
 
     try {
-        const bufferRaw = await read(dbPath);
+        const bufferRaw = await readDatabaseSnapshot(dbPath);
         const SQL = await initSqlJs({
             locateFile: () => path.resolve(__dirname, SQL_WASM_PATH),
         });
 
         console.log("[DEBUG] Loaded VSCode state database from:", dbPath);
-        DATABASE = new SQL.Database(new Uint8Array(bufferRaw));
+        DATABASE = new SQL.Database(bufferRaw);
         return DATABASE;
     } catch (error) {
         throw new Error(`Failed to initialize database: ${(error as Error).message}`);
