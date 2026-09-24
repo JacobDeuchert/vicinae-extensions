@@ -22,6 +22,7 @@ import {
   listFields,
   isUnlocked,
   syncVault,
+  runRbw,
 } from "./rbw";
 
 type EntryState = { entries: VaultEntry[]; loaded: boolean };
@@ -153,7 +154,7 @@ export default function Command() {
         <List.EmptyView
           icon={Icon.Warning}
           title="rbw is not installed"
-          description="Install rbw to use this extension. See https://github.com/doy/rbw"
+          description="Install rbw to use this extension. See https://github.com/doy/rbw. Also, try configuring the rbwPath setting in Vicinae settings."
         />
       </List>
     );
@@ -171,11 +172,9 @@ export default function Command() {
               <Action
                 title="Unlock Vault"
                 icon={Icon.LockUnlocked}
-								onAction={async () => {
-									try {
-                    const { execFile } = await import("node:child_process");
-                    const { promisify } = await import("node:util");
-                    await promisify(execFile)("rbw", ["unlock"]);
+                onAction={async () => {
+                  try {
+                    await runRbw(["unlock"]);
                     setLocked(false);
                     await loadEntries();
                   } catch (error) {
@@ -233,6 +232,7 @@ export default function Command() {
                   <CopyPasswordAction entry={entry} />
                   <CopyUsernameAction entry={entry} />
                   <CopyTotpAction entry={entry} />
+                  <CopyLinkAction entry={entry} />
                 </ActionPanel.Section>
                 <ActionPanel.Section title="Paste to Frontmost App">
                   <PastePasswordAction entry={entry} />
@@ -376,6 +376,39 @@ function CopyTotpAction({ entry }: { entry: VaultEntry }) {
   );
 }
 
+function CopyLinkAction({ entry }: { entry: VaultEntry }) {
+  const uris = entry.uris ?? [];
+  if (uris.length === 0) return null;
+
+  if (uris.length === 1) {
+    return (
+      <Action
+        title="Copy Link"
+        icon={Icon.Link}
+        onAction={async () => {
+          await Clipboard.copy(uris[0], { concealed: true });
+          showToast(Toast.Style.Success, "Copied link");
+        }}
+      />
+    );
+  }
+
+  return (
+    <ActionPanel.Submenu title="Copy Link" icon={Icon.Link}>
+      {uris.map((uri, index) => (
+        <Action
+          key={index}
+          title={uri}
+          onAction={async () => {
+            await Clipboard.copy(uri, { concealed: true });
+            showToast(Toast.Style.Success, "Copied link");
+          }}
+        />
+      ))}
+    </ActionPanel.Submenu>
+  );
+}
+
 function PastePasswordAction({ entry }: { entry: VaultEntry }) {
   return (
     <Action
@@ -492,6 +525,11 @@ function EntryDetailView({ entry }: { entry: VaultEntry }) {
   const markdown = [
     `# ${detail.name}`,
     detail.user ? `**Username:** ${detail.user}` : null,
+    entry.uris && entry.uris.length > 0
+      ? `## Link${entry.uris.length > 1 ? "s" : ""}\n\n${entry.uris
+          .map((uri) => `- [${uri}](<${uri}>)`)
+          .join("\n")}`
+      : null,
     "",
     "## Password",
     `\`\`\`\n${detail.password}\n\`\`\``,
