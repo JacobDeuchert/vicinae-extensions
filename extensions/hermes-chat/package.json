@@ -1,0 +1,71 @@
+{
+  "name": "hermes-chat",
+  "title": "Hermes Chat",
+  "description": "Send a quick message to a self-hosted Hermes agent and read the reply",
+  "icon": "icon.png",
+  "author": "jacob-deuchert",
+  "keywords": [
+    "chat",
+    "hermes",
+    "ai",
+    "agent"
+  ],
+  "categories": [
+    "Productivity"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "ask",
+      "title": "Ask Hermes",
+      "subtitle": "Hermes",
+      "description": "Send a single message to Hermes and show the reply",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "message",
+          "type": "text",
+          "placeholder": "Message",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "baseUrl",
+      "title": "API Base URL",
+      "description": "Base URL of the Hermes OpenAI-compatible API",
+      "type": "textfield",
+      "default": "http://127.0.0.1:8642/v1",
+      "required": true
+    },
+    {
+      "name": "apiToken",
+      "title": "API Token",
+      "description": "Bearer token for the Hermes API (leave empty if none required)",
+      "type": "password",
+      "required": false
+    },
+    {
+      "name": "model",
+      "title": "Model",
+      "description": "Model name passed in the request (Hermes may ignore it)",
+      "type": "textfield",
+      "default": "hermes",
+      "required": false
+    }
+  ],
+  "dependencies": {
+    "@vicinae/api": "^0.20.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.1",
+    "@types/react": "19.0.10",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "vici build",
+    "dev": "vici develop"
+  }
+}
